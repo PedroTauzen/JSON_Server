@@ -1,5 +1,7 @@
-// /middlewares/authMiddleware.js
 const jwt = require('jsonwebtoken');
+const { isBlacklisted } = require('../middleware/blacklist');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'secreta';
 
 // Middleware para verificar se o utilizador está autenticado
 function verifyToken(req, res, next) {
@@ -15,7 +17,12 @@ function verifyToken(req, res, next) {
         return res.status(403).json({ message: 'Formato do token inválido!' });
     }
 
-    jwt.verify(token, 'secreta', (err, decoded) => {
+    // Verifica se o token está na blacklist
+    if (isBlacklisted(token)) {
+        return res.status(403).json({ message: 'Token inválido ou expirado!' });
+    }
+
+    jwt.verify(token, JWT_SECRET, (err, decoded) => {
         if (err) {
             return res.status(403).json({ message: 'Token inválido!' });
         }
