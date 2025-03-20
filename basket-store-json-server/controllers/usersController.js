@@ -1,10 +1,12 @@
-const db = require('../db');
+const { getDb, saveDb } = require('../database/db');
 const bcrypt = require('bcryptjs');
 const moment = require('moment');
 
 // Função para registrar um cliente
 exports.registerClient = async (req, res) => {
     const { name, surname, email, password, deliveryAddress, phoneNumber } = req.body;
+
+    const db = getDb();
 
     // Verifica se todos os campos obrigatórios foram preenchidos
     if (!name || !surname || !email || !password || !deliveryAddress || !phoneNumber) {
@@ -20,8 +22,10 @@ exports.registerClient = async (req, res) => {
     // Hash da senha antes de armazenar
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    const newId = db.users.length > 0 ? Math.max(...db.users.map(u => u.id)) + 1 : 1;
+
     const newUser = {
-        id: db.users.length + 1,
+        id: newId,
         name,
         surname,
         email,
@@ -33,7 +37,7 @@ exports.registerClient = async (req, res) => {
     };
 
     db.users.push(newUser);
-    fs.writeFileSync('db.json', JSON.stringify(db, null, 2));
+    saveDb(db);
 
     res.status(201).json({ message: 'Cliente criado com sucesso!', user: { ...newUser, password: undefined } });
 };
@@ -47,6 +51,8 @@ exports.registerSeller = async (req, res) => {
         return res.status(400).json({ message: "Todos os campos são obrigatórios!" });
     }
 
+    const db = getDb();
+
     // Verifica se o email já existe no sistema
     const userExist = db.users.find(user => user.email === email);
     if (userExist) {
@@ -56,8 +62,10 @@ exports.registerSeller = async (req, res) => {
     // Hash da senha antes de armazenar
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    const newId = db.users.length > 0 ? Math.max(...db.users.map(u => u.id)) + 1 : 1;
+
     const newSeller = {
-        id: db.users.length + 1,
+        id: newId,
         name,
         surname,
         email,
@@ -72,13 +80,20 @@ exports.registerSeller = async (req, res) => {
 
     db.users.push(newSeller);
 
-    fs.writeFileSync('db.json', JSON.stringify(db, null, 2));
+    saveDb(db);
 
     res.status(201).json({ message: 'Vendedor criado com sucesso!', user: { ...newSeller, password: undefined } });
 };
 
 // Função para obter o perfil de um cliente
 exports.getUserProfile = (req, res) => {
+
+    const db = getDb();
+
+    if (!req.user) {
+        return res.status(401).json({ message: "Acesso não autorizado!" });
+    }
+
     const user = db.users.find(user => user.id === req.user.id);
 
     if (!user) {
@@ -91,12 +106,20 @@ exports.getUserProfile = (req, res) => {
 
 // Função para listar todos os utilizadores
 exports.listUsers = (req, res) => {
+    const db = getDb();
+
     const usersWithoutPasswords = db.users.map(({ password, ...user }) => user);
     res.json(usersWithoutPasswords);
 };
 
 // Função para atualizar dados de um cliente
 exports.updateUser = async (req, res) => {
+    const db = getDb();
+
+    if (!req.user) {
+        return res.status(401).json({ message: "Acesso não autorizado!" });
+    }
+
     const user = db.users.find(user => user.id === parseInt(req.params.userId));
 
     if (!user) {
@@ -113,7 +136,7 @@ exports.updateUser = async (req, res) => {
     }
 
     Object.assign(user, req.body);
-    fs.writeFileSync('db.json', JSON.stringify(db, null, 2));
+    saveDb(db);
 
     const { password, ...updatedUser } = user;
     res.json({ message: 'Dados atualizados com sucesso!', user: updatedUser });
@@ -121,6 +144,12 @@ exports.updateUser = async (req, res) => {
 
 // Função para deletar um utilizador
 exports.deleteUser = (req, res) => {
+    const db = getDb();
+
+    if (!req.user) {
+        return res.status(401).json({ message: "Acesso não autorizado!" });
+    }
+
     const index = db.users.findIndex(user => user.id === parseInt(req.params.userId));
 
     if (index === -1) {
@@ -135,7 +164,7 @@ exports.deleteUser = (req, res) => {
     }
 
     db.users.splice(index, 1);
-    fs.writeFileSync('db.json', JSON.stringify(db, null, 2));
+    saveDb(db);
 
     res.json({ message: 'Utilizador removido com sucesso!' });
 };
